@@ -335,4 +335,6 @@ void *read_object_with_reference(struct repository *r,
 				 unsigned long *size,
 				 struct object_id *oid_ret);
 
+int read_object_process(const struct object_id *oid);
+
 #endif /* OBJECT_STORE_H */
