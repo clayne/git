@@ -17,6 +17,7 @@
 #include "environment.h"
 #include "fsck.h"
 #include "gettext.h"
+#include "gvfs.h"
 #include "hex.h"
 #include "loose.h"
 #include "object-file-convert.h"
@@ -116,8 +117,19 @@ static int check_and_freshen_nonlocal(const struct object_id *oid, int freshen)
 
 static int check_and_freshen(const struct object_id *oid, int freshen)
 {
-	return check_and_freshen_local(oid, freshen) ||
+	int ret;
+	int tried_hook = 0;
+
+retry:
+	ret = check_and_freshen_local(oid, freshen) ||
 	       check_and_freshen_nonlocal(oid, freshen);
+	if (!ret && gvfs_virtualize_objects(the_repository) && !tried_hook) {
+		tried_hook = 1;
+		if (!read_object_process(the_repository, oid))
+			goto retry;
+	}
+
+	return ret;
 }
 
 int has_loose_object_nonlocal(const struct object_id *oid)

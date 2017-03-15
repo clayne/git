@@ -437,6 +437,8 @@ enum for_each_object_flags {
 	FOR_EACH_OBJECT_SKIP_ON_DISK_KEPT_PACKS = (1<<4),
 };
 
+int read_object_process(struct repository *r, const struct object_id *oid);
+
 /* Compatibility wrappers, to be removed once Git 2.51 has been released. */
 #include "repository.h"
 
