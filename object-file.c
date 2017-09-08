@@ -114,7 +114,8 @@ static int check_and_freshen_nonlocal(const struct object_id *oid, int freshen)
 	return 0;
 }
 
-static int check_and_freshen(const struct object_id *oid, int freshen)
+static int check_and_freshen(const struct object_id *oid, int freshen,
+			     int skip_virtualized_objects)
 {
 	int ret;
 	int tried_hook = 0;
@@ -122,7 +123,8 @@ static int check_and_freshen(const struct object_id *oid, int freshen)
 retry:
 	ret = check_and_freshen_local(oid, freshen) ||
 	       check_and_freshen_nonlocal(oid, freshen);
-	if (!ret && core_virtualize_objects && !tried_hook) {
+	if (!ret && core_virtualize_objects && !skip_virtualized_objects &&
+	    !tried_hook) {
 		tried_hook = 1;
 		if (!read_object_process(oid))
 			goto retry;
@@ -138,7 +140,7 @@ int has_loose_object_nonlocal(const struct object_id *oid)
 
 int has_loose_object(const struct object_id *oid)
 {
-	return check_and_freshen(oid, 0);
+	return check_and_freshen(oid, 0, 0);
 }
 
 int format_object_header(char *str, size_t size, enum object_type type,
@@ -931,9 +933,10 @@ static int write_loose_object(const struct object_id *oid, char *hdr,
 					  FOF_SKIP_COLLISION_CHECK);
 }
 
-static int freshen_loose_object(const struct object_id *oid)
+static int freshen_loose_object(const struct object_id *oid,
+				int skip_virtualized_objects)
 {
-	return check_and_freshen(oid, 1);
+	return check_and_freshen(oid, 1, skip_virtualized_objects);
 }
 
 static int freshen_packed_object(const struct object_id *oid)
@@ -1029,7 +1032,7 @@ int stream_loose_object(struct input_stream *in_stream, size_t len,
 		die(_("deflateEnd on stream object failed (%d)"), ret);
 	close_loose_object(fd, tmp_file.buf);
 
-	if (freshen_packed_object(oid) || freshen_loose_object(oid)) {
+	if (freshen_packed_object(oid) || freshen_loose_object(oid, 1)) {
 		unlink_or_warn(tmp_file.buf);
 		goto cleanup;
 	}
@@ -1092,7 +1095,7 @@ int write_object_file_flags(const void *buf, size_t len,
 	 * it out into .git/objects/??/?{38} file.
 	 */
 	write_object_file_prepare(algo, buf, len, type, oid, hdr, &hdrlen);
-	if (freshen_packed_object(oid) || freshen_loose_object(oid))
+	if (freshen_packed_object(oid) || freshen_loose_object(oid, 1))
 		return 0;
 	if (write_loose_object(oid, hdr, hdrlen, buf, len, 0, flags))
 		return -1;
