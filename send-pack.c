@@ -3,6 +3,7 @@
 #include "commit.h"
 #include "date.h"
 #include "gettext.h"
+#include "gvfs.h"
 #include "hex.h"
 #include "object-store.h"
 #include "pkt-line.h"
@@ -45,7 +46,7 @@ int option_parse_push_signed(const struct option *opt,
 static void feed_object(struct repository *r,
 			const struct object_id *oid, FILE *fh, int negative)
 {
-	if (negative && !has_object(r, oid, 0))
+	if (negative && !gvfs_config_is_set(GVFS_MISSING_OK) && !has_object(r, oid, 0))
 		return;
 
 	if (negative)
