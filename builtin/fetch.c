@@ -1077,7 +1077,7 @@ static int fetch_multiple(struct string_list *list)
 		const char *name = list->items[i].string;
 		argv_array_push(&argv, name);
 		if (verbosity >= 0)
-			printf(_("Fetching %s\n"), name);
+			fprintf(stderr, _("Fetching %s\n"), name);
 		if (run_command_v_opt(argv.argv, RUN_GIT_CMD)) {
 			error(_("Could not fetch %s"), name);
 			result = 1;
