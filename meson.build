@@ -1786,7 +1786,7 @@ test_dependencies += executable('git-http-backend',
 )
 
 bin_wrappers += executable('scalar',
-  sources: 'scalar.c',
+  sources: ['scalar.c', 'json-parser.c'],
   dependencies: [libgit_commonmain],
   install: true,
   install_dir: get_option('libexecdir') / 'git-core',
