@@ -19,6 +19,7 @@
 #include "dir.h"
 #include "environment.h"
 #include "hex.h"
+#include "gvfs.h"
 #include "config.h"
 #include "tempfile.h"
 #include "lockfile.h"
@@ -839,7 +840,7 @@ static int gc_foreground_tasks(struct maintenance_run_opts *opts,
 int cmd_gc(int argc,
 	   const char **argv,
 	   const char *prefix,
-	   struct repository *repo UNUSED)
+	   struct repository *repo)
 {
 	int aggressive = 0;
 	int force = 0;
@@ -919,6 +920,10 @@ int cmd_gc(int argc,
 	}
 	if (opts.quiet)
 		strvec_push(&repack, "-q");
+
+	if ((!opts.auto_flag || (opts.auto_flag && cfg.gc_auto_threshold > 0)) &&
+	    gvfs_config_is_set(repo, GVFS_BLOCK_COMMANDS))
+		die(_("'git gc' is not supported on a GVFS repo"));
 
 	if (opts.auto_flag) {
 		if (cfg.detach_auto && opts.detach < 0)
@@ -1333,18 +1338,25 @@ static int write_loose_object_to_stdin(const struct object_id *oid,
 	return ++(d->count) > d->batch_size;
 }
 
+static const char *shared_object_dir = NULL;
+
 static int pack_loose(struct maintenance_run_opts *opts)
 {
 	struct repository *r = the_repository;
 	int result = 0;
 	struct write_loose_object_data data;
 	struct child_process pack_proc = CHILD_PROCESS_INIT;
+	const char *object_dir = r->objects->sources->path;
+
+	/* If set, use the shared object directory. */
+	if (shared_object_dir)
+		object_dir = shared_object_dir;
 
 	/*
 	 * Do not start pack-objects process
 	 * if there are no loose objects.
 	 */
-	if (!for_each_loose_file_in_objdir(r->objects->sources->path,
+	if (!for_each_loose_file_in_objdir(object_dir,
 					   bail_on_loose,
 					   NULL, NULL, NULL))
 		return 0;
@@ -1356,7 +1368,7 @@ static int pack_loose(struct maintenance_run_opts *opts)
 		strvec_push(&pack_proc.args, "--quiet");
 	else
 		strvec_push(&pack_proc.args, "--no-quiet");
-	strvec_pushf(&pack_proc.args, "%s/pack/loose", r->objects->sources->path);
+	strvec_pushf(&pack_proc.args, "%s/pack/loose", object_dir);
 
 	pack_proc.in = -1;
 
@@ -1384,7 +1396,7 @@ static int pack_loose(struct maintenance_run_opts *opts)
 	else if (data.batch_size > 0)
 		data.batch_size--; /* Decrease for equality on limit. */
 
-	for_each_loose_file_in_objdir(r->objects->sources->path,
+	for_each_loose_file_in_objdir(object_dir,
 				      write_loose_object_to_stdin,
 				      NULL,
 				      NULL,
@@ -1829,11 +1841,12 @@ static int task_option_parse(const struct option *opt,
 }
 
 static int maintenance_run(int argc, const char **argv, const char *prefix,
-			   struct repository *repo UNUSED)
+			   struct repository *repo)
 {
 	struct maintenance_run_opts opts = MAINTENANCE_RUN_OPTS_INIT;
 	struct string_list selected_tasks = STRING_LIST_INIT_DUP;
 	struct gc_config cfg = GC_CONFIG_INIT;
+	const char *tmp_obj_dir = NULL;
 	struct option builtin_maintenance_run_options[] = {
 		OPT_BOOL(0, "auto", &opts.auto_flag,
 			 N_("run tasks based on the state of the repository")),
@@ -1869,6 +1882,17 @@ static int maintenance_run(int argc, const char **argv, const char *prefix,
 	if (argc != 0)
 		usage_with_options(builtin_maintenance_run_usage,
 				   builtin_maintenance_run_options);
+
+	/*
+	 * To enable the VFS for Git/Scalar shared object cache, use
+	 * the gvfs.sharedcache config option to redirect the
+	 * maintenance to that location.
+	 */
+	if (!repo_config_get_value(repo, "gvfs.sharedcache", &tmp_obj_dir) &&
+	    tmp_obj_dir) {
+		shared_object_dir = xstrdup(tmp_obj_dir);
+		setenv(DB_ENVIRONMENT, shared_object_dir, 1);
+	}
 
 	ret = maintenance_run_tasks(&opts, &cfg);
 
