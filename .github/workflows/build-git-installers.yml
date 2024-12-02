@@ -537,7 +537,7 @@ jobs:
           Priority: optional
           Architecture: $ARCH
           Depends: libcurl3-gnutls, liberror-perl, libexpat1, libpcre2-8-0, perl, perl-modules, zlib1g
-          Maintainer: Git Fundamentals <git-fundamentals@github.com>
+          Maintainer: GitClient <gitclient@microsoft.com>
           Description: Git client built from the https://github.com/microsoft/git repository,
             specialized in supporting monorepo scenarios. Includes the Scalar CLI.
           EOF
