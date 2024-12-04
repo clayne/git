@@ -213,11 +213,11 @@ jobs:
 
           sed -i -e '6 a use_recently_seen=no' \
             $b/git-update-git-for-windows
-      - name: Set the installer Publisher to the Git Fundamentals team
+      - name: Set the installer Publisher to the GitClient team
         shell: bash
         run: |
           b=/usr/src/build-extra &&
-          sed -i -e 's/^\(AppPublisher=\).*/\1The Git Fundamentals Team at GitHub/' $b/installer/install.iss
+          sed -i -e 's/^\(AppPublisher=\).*/\1The GitClient Team at Microsoft/' $b/installer/install.iss
       - name: Let the installer configure Visual Studio to use the installed Git
         shell: bash
         run: |
@@ -537,7 +537,7 @@ jobs:
           Priority: optional
           Architecture: $ARCH
           Depends: libcurl3-gnutls, liberror-perl, libexpat1, libpcre2-8-0, perl, perl-modules, zlib1g
-          Maintainer: Git Fundamentals <git-fundamentals@github.com>
+          Maintainer: GitClient <gitclient@microsoft.com>
           Description: Git client built from the https://github.com/microsoft/git repository,
             specialized in supporting monorepo scenarios. Includes the Scalar CLI.
           EOF
