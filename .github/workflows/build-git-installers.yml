@@ -72,6 +72,17 @@ jobs:
       HOME: "${{github.workspace}}\\home"
       USERPROFILE: "${{github.workspace}}\\home"
     steps:
+      - name: TEST
+        shell: cmd
+        run: |
+          echo git:
+          where git
+          echo.
+          echo bash:
+          where bash
+          echo.
+          echo PATH:
+          echo %PATH%
       - name: Configure user
         shell: bash
         run:
@@ -195,6 +206,7 @@ jobs:
       - name: Clone build-extra
         shell: bash
         run: |
+          which git
           git clone --filter=blob:none --single-branch -b main https://github.com/git-for-windows/build-extra /usr/src/build-extra
       - name: Prepare home directory for code-signing
         env:
