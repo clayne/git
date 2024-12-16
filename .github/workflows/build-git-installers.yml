@@ -301,12 +301,7 @@ jobs:
 
   # Build and sign Mac OSX installers & upload artifacts
   create-macos-artifacts:
-    strategy:
-      matrix:
-        arch:
-          - name: arm64
-            runner: macos-latest-xl-arm64
-    runs-on: ${{ matrix.arch.runner }}
+    runs-on: macos-latest-xl-arm64
     needs: prereqs
     env:
       VERSION: "${{ needs.prereqs.outputs.tag_version }}"
