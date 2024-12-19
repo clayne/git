@@ -9,7 +9,7 @@ defaults:
 
 jobs:
   clang-build:
-    runs-on: [Windows, ARM64]
+    runs-on: ['self-hosted', '1ES.Pool=github-arm64-pool']
     env:
       NO_PERL: 1
     steps:
