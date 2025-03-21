@@ -381,16 +381,23 @@ jobs:
           # Make universal gettext library
           lipo -create -output libintl.a /usr/local/opt/gettext/lib/libintl.a /opt/homebrew/opt/gettext/lib/libintl.a
 
+      - name: Download signing secrets
+        id: signing-secrets
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.APPLE_APPSIGN_ID_SECRET_NAME }}         > $output:appsign-id
+            ${{ secrets.APPLE_INSTSIGN_ID_SECRET_NAME }}        > $output:instsign-id
+            ${{ secrets.APPLE_TEAM_ID_SECRET_NAME }}            > $output:team-id
+            ${{ secrets.APPLE_DEVELOPER_ID_SECRET_NAME }}       > $output:dev-id
+            ${{ secrets.APPLE_DEVELOPER_PASSWORD_SECRET_NAME }} > $output:dev-pass
+            ${{ secrets.APPLE_APPCERT_PASS_SECRET_NAME }}       > $output:appcert-pass
+            ${{ secrets.APPLE_INSTCERT_PASS_SECRET_NAME }}      > $output:instcert-pass
+            ${{ secrets.APPLE_APPCERT_SECRET_NAME }}      base64> appcert.p12
+            ${{ secrets.APPLE_INSTCERT_SECRET_NAME }}     base64> instcert.p12
+
       - name: Set up signing/notarization infrastructure
-        env:
-          A1: ${{ secrets.APPLICATION_CERTIFICATE_BASE64 }}
-          A2: ${{ secrets.APPLICATION_CERTIFICATE_PASSWORD }}
-          I1: ${{ secrets.INSTALLER_CERTIFICATE_BASE64 }}
-          I2: ${{ secrets.INSTALLER_CERTIFICATE_PASSWORD }}
-          N1: ${{ secrets.APPLE_TEAM_ID }}
-          N2: ${{ secrets.APPLE_DEVELOPER_ID }}
-          N3: ${{ secrets.APPLE_DEVELOPER_PASSWORD }}
-          N4: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
         run: |
           echo "Setting up signing certificates"
           security create-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
@@ -399,20 +406,18 @@ jobs:
           # Prevent re-locking
           security set-keychain-settings $RUNNER_TEMP/buildagent.keychain
 
-          echo "$A1" | base64 -D > $RUNNER_TEMP/cert.p12
-          security import $RUNNER_TEMP/cert.p12 \
+          security import appcert.p12 \
             -k $RUNNER_TEMP/buildagent.keychain \
-            -P "$A2" \
+            -P '${{ steps.signing-secrets.outputs.appcert-pass }}' \
             -T /usr/bin/codesign
           security set-key-partition-list \
             -S apple-tool:,apple:,codesign: \
             -s -k pwd \
             $RUNNER_TEMP/buildagent.keychain
 
-          echo "$I1" | base64 -D > $RUNNER_TEMP/cert.p12
-          security import $RUNNER_TEMP/cert.p12 \
+          security import instcert.p12 \
             -k $RUNNER_TEMP/buildagent.keychain \
-            -P "$I2" \
+            -P '${{ steps.signing-secrets.outputs.instcert-pass }}' \
             -T /usr/bin/pkgbuild
           security set-key-partition-list \
             -S apple-tool:,apple:,pkgbuild: \
@@ -421,16 +426,12 @@ jobs:
 
           echo "Setting up notarytool"
           xcrun notarytool store-credentials \
-            --team-id "$N1" \
-            --apple-id "$N2" \
-            --password "$N3" \
-            "$N4"
+            --team-id '${{ steps.signing-secrets.outputs.team-id }}' \
+            --apple-id '${{ steps.signing-secrets.outputs.dev-id }}' \
+            --password '${{ steps.signing-secrets.outputs.dev-pass }}' \
+            "msftgit"
 
       - name: Build, sign, and notarize artifacts
-        env:
-          A3: ${{ secrets.APPLE_APPLICATION_SIGNING_IDENTITY }}
-          I3: ${{ secrets.APPLE_INSTALLER_SIGNING_IDENTITY }}
-          N4: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
         run: |
           die () {
             echo "$*" >&2
@@ -490,16 +491,17 @@ jobs:
           cp -R stage/git-universal-$VERSION/ \
             git/.github/macos-installer/build-artifacts
           make -C git/.github/macos-installer V=1 codesign \
-            APPLE_APP_IDENTITY="$A3" || die "Creating signed payload failed"
+            APPLE_APP_IDENTITY=${{ steps.signing-secrets.outputs.appsign-id }} || die "Creating signed payload failed"
 
           # Build and sign pkg
           make -C git/.github/macos-installer V=1 pkg \
-            APPLE_INSTALLER_IDENTITY="$I3" \
+            APPLE_INSTALLER_IDENTITY='${{ steps.signing-secrets.outputs.instsign-id }}' \
             || die "Creating signed pkg failed"
 
           # Notarize pkg
           make -C git/.github/macos-installer V=1 notarize \
-            APPLE_INSTALLER_IDENTITY="$I3" APPLE_KEYCHAIN_PROFILE="$N4" \
+            APPLE_INSTALLER_IDENTITY='${{ steps.signing-secrets.outputs.instsign-id }}' \
+            APPLE_KEYCHAIN_PROFILE="msftgit" \
             || die "Creating signed and notarized pkg failed"
 
           # Create DMG
