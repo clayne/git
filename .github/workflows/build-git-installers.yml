@@ -754,9 +754,6 @@ jobs:
       - create-macos-artifacts
       - windows_artifacts
       - prereqs
-    env:
-      AZURE_VAULT: ${{ secrets.AZURE_VAULT }}
-      GPG_PUBLIC_KEY_SECRET_NAME: ${{ secrets.GPG_PUBLIC_KEY_SECRET_NAME }}
     environment: release
     if: |
       success() ||
@@ -807,12 +804,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Download GPG public key signature file
-        run: |
-          az keyvault secret show --name "$GPG_PUBLIC_KEY_SECRET_NAME" \
-            --vault-name "$AZURE_VAULT" --query "value" --output tsv |
-            base64 -d >msft-git-public.asc
-          mv msft-git-public.asc deb-package
+      - name: Download Linux GPG public key signature file
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.LINUX_GPG_PUBLIC_SECRET_NAME }} base64> deb-package/msft-git-public.asc
 
       - uses: actions/github-script@v6
         with:
