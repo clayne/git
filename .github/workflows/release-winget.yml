@@ -71,12 +71,6 @@ jobs:
                  "$($asset_arm64_url)|arm64|machine" `
                  "$($asset_arm64_url)|arm64|user"
 
-          # Manually substitute the name of the default branch in the License
-          # and Copyright URLs since the tooling cannot do that for us.
-          $shortenedVersion = $version -replace ".{4}$"
-          $manifestPath = dir -Path ./manifests -Filter Microsoft.Git.locale.en-US.yaml -Recurse | %{$_.FullName}
-          sed -i "s/vfs-[.0-9]*/vfs-$shortenedVersion/g" "$manifestPath"
-
           # Download the token from Azure Key Vault and mask it in the logs
           az keyvault secret download --name ${{ secrets.WINGET_TOKEN_SECRET_NAME }} --vault-name ${{ secrets.AZURE_VAULT }} --file token.txt
           Write-Host -NoNewLine "::add-mask::$(Get-Content token.txt)"
