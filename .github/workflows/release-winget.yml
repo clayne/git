@@ -35,10 +35,11 @@ jobs:
           $PSNativeCommandErrorActionPreference = "Stop"
 
           if ($env:TAG_NAME -eq "") {
-            $env:TAG_NAME =  $github.release.tag_name
-
             # Get latest release
             $github = Get-Content '${{ github.event_path }}' | ConvertFrom-Json
+
+            # Set the tag name environment variable
+            $env:TAG_NAME =  $github.release.tag_name
 
             # Get download URLs
             $asset_x64 = $github.release.assets | Where-Object -Property name -match '64-bit.exe$'
