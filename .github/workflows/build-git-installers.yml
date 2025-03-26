@@ -631,28 +631,28 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Download GPG secrets
+        id: gpg-secrets
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.LINUX_GPG_KEYGRIP_SECRET_NAME }}       > $output:keygrip
+            ${{ secrets.LINUX_GPG_PRIVATE_SECRET_NAME }} base64> $output:private-key
+            ${{ secrets.LINUX_GPG_PASSPHRASE_SECRET_NAME }}    > $output:passphrase
+
       - name: Prepare for GPG signing
-        env:
-          AZURE_VAULT: ${{ secrets.AZURE_VAULT }}
-          GPG_KEY_SECRET_NAME: ${{ secrets.GPG_KEY_SECRET_NAME }}
-          GPG_PASSPHRASE_SECRET_NAME: ${{ secrets.GPG_PASSPHRASE_SECRET_NAME }}
-          GPG_KEYGRIP_SECRET_NAME: ${{ secrets.GPG_KEYGRIP_SECRET_NAME }}
         run: |
           # Install debsigs
           sudo apt-get install -y debsigs
 
-          # Download GPG key, passphrase, and keygrip from Azure Key Vault
-          key="$(az keyvault secret show --name "$GPG_KEY_SECRET_NAME" --vault-name "$AZURE_VAULT" --query "value" --output tsv)"
-          passphrase="$(az keyvault secret show --name "$GPG_PASSPHRASE_SECRET_NAME" --vault-name "$AZURE_VAULT" --query "value" --output tsv)"
-          keygrip="$(az keyvault secret show --name "$GPG_KEYGRIP_SECRET_NAME" --vault-name "$AZURE_VAULT" --query "value" --output tsv)"
-
           # Import GPG key
-          echo "$key" | base64 -d | gpg --import --no-tty --batch --yes
+          echo -n '${{ steps.gpg-secrets.outputs.private-key }}' | gpg --import --no-tty --batch --yes
 
           # Configure GPG
           echo "allow-preset-passphrase" > ~/.gnupg/gpg-agent.conf
           gpg-connect-agent RELOADAGENT /bye
-          /usr/lib/gnupg2/gpg-preset-passphrase --preset "$keygrip" <<<"$passphrase"
+          /usr/lib/gnupg2/gpg-preset-passphrase --preset '${{ steps.gpg-secrets.outputs.keygrip }}' <<<'${{ steps.gpg-secrets.outputs.passphrase }}'
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
