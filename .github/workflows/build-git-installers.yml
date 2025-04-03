@@ -8,6 +8,10 @@ on:
 permissions:
   id-token: write # required for Azure login via OIDC
 
+env:
+  DO_WIN_CODESIGN: ${{ secrets.WIN_CODESIGN_CERT_SECRET_NAME != '' && secrets.WIN_CODESIGN_PASS_SECRET_NAME != '' }}
+  DO_WIN_GPGSIGN: ${{ secrets.WIN_GPG_KEYGRIP_SECRET_NAME != '' && secrets.WIN_GPG_PRIVATE_SECRET_NAME != '' && secrets.WIN_GPG_PASSPHRASE_SECRET_NAME != '' }}
+
 jobs:
   # Check prerequisites for the workflow
   prereqs:
@@ -101,43 +105,62 @@ jobs:
           git remote add -f origin https://github.com/git-for-windows/git &&
           git fetch "https://github.com/${{github.repository}}" refs/tags/${tag_name}:refs/tags/${tag_name} &&
           git reset --hard ${tag_name}
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Download code signing secrets
+        id: codesign-secrets
+        if: env.DO_WIN_CODESIGN == 'true'
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.WIN_CODESIGN_CERT_SECRET_NAME }} base64> home/.sig/codesign.p12
+            ${{ secrets.WIN_CODESIGN_PASS_SECRET_NAME }}       > home/.sig/codesign.pass
       - name: Prepare home directory for code-signing
-        env:
-          CODESIGN_P12: ${{secrets.CODESIGN_P12}}
-          CODESIGN_PASS: ${{secrets.CODESIGN_PASS}}
-        if: env.CODESIGN_P12 != '' && env.CODESIGN_PASS != ''
+        if: ${{ steps.codesign-secrets.outcome == 'success' }}
         shell: bash
         run: |
-          cd home &&
-          mkdir -p .sig &&
-          echo -n "$CODESIGN_P12" | tr % '\n' | base64 -d >.sig/codesign.p12 &&
-          echo -n "$CODESIGN_PASS" >.sig/codesign.pass
           git config --global alias.signtool '!sh "/usr/src/build-extra/signtool.sh"'
+      - name: Download GPG secrets
+        id: gpg-secrets
+        if: env.DO_WIN_GPGSIGN == 'true'
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.WIN_GPG_KEYGRIP_SECRET_NAME }}    > $output:keygrip
+            ${{ secrets.WIN_GPG_PRIVATE_SECRET_NAME }}    > $output:private-key
+            ${{ secrets.WIN_GPG_PASSPHRASE_SECRET_NAME }} > $output:passphrase
       - name: Prepare home directory for GPG signing
-        if: env.GPGKEY != ''
+        if: ${{ steps.gpg-secrets.outputs.keygrip != '' && steps.gpg-secrets.outputs.private-key != '' }}
         shell: bash
         run: |
           # This section ensures that the identity for the GPG key matches the git user identity, otherwise
           # signing will fail
 
-          echo '${{secrets.PRIVGPGKEY}}' | tr % '\n' | gpg $GPG_OPTIONS --import &&
-          info="$(gpg --list-keys --with-colons "${GPGKEY%% *}" | cut -d : -f 1,10 | sed -n '/^uid/{s|uid:||p;q}')" &&
+          # Import the GPG private key
+          echo -n '${{ steps.gpg-secrets.outputs.private-key }}' | gpg $GPG_OPTIONS --import &&
+
+          info="$(gpg --list-keys --with-colons '${{ steps.gpg-secrets.outputs.keygrip }}' | cut -d : -f 1,10 | sed -n '/^uid/{s|uid:||p;q}')" &&
           git config --global user.name "${info% <*}" &&
           git config --global user.email "<${info#*<}"
-        env:
-          GPGKEY: ${{secrets.GPGKEY}}
       - name: Build mingw-w64-${{matrix.arch.toolchain}}-git
-        env:
-          GPGKEY: "${{secrets.GPGKEY}}"
         shell: bash
         run: |
           set -x
+
+          # Build the GPGKEY variable
+          export GPGKEY="${{ steps.gpg-secrets.outputs.keygrip }} --passphrase '${{ steps.gpg-secrets.outputs.passphrase }}' --yes --batch --no-tty --pinentry-mode loopback --digest-algo SHA256" &&
 
           # Make sure that there is a `/usr/bin/git` that can be used by `makepkg-mingw`
           printf '#!/bin/sh\n\nexec /${{matrix.arch.mingwprefix}}/bin/git.exe "$@"\n' >/usr/bin/git &&
 
           sh -x /usr/src/build-extra/please.sh build-mingw-w64-git --only-${{matrix.arch.name}} --build-src-pkg -o artifacts HEAD &&
-          if test -n "$GPGKEY"
+          if test -n "${{ steps.gpg-secrets.outputs.keygrip }}"
           then
             for tar in artifacts/*.tar*
             do
@@ -195,16 +218,19 @@ jobs:
         shell: bash
         run: |
           git clone --filter=blob:none --single-branch -b main https://github.com/git-for-windows/build-extra /usr/src/build-extra
+      - name: Download code signing secrets
+        id: codesign-secrets
+        if: env.DO_WIN_CODESIGN == 'true'
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.WIN_CODESIGN_CERT_SECRET_NAME }} base64> home/.sig/codesign.p12
+            ${{ secrets.WIN_CODESIGN_PASS_SECRET_NAME }}       > home/.sig/codesign.pass
       - name: Prepare home directory for code-signing
-        env:
-          CODESIGN_P12: ${{secrets.CODESIGN_P12}}
-          CODESIGN_PASS: ${{secrets.CODESIGN_PASS}}
-        if: env.CODESIGN_P12 != '' && env.CODESIGN_PASS != ''
+        if: ${{ steps.codesign-secrets.outcome == 'success' }}
         shell: bash
         run: |
-          mkdir -p home/.sig &&
-          echo -n "$CODESIGN_P12" | tr % '\n' | base64 -d >home/.sig/codesign.p12 &&
-          echo -n "$CODESIGN_PASS" >home/.sig/codesign.pass &&
           git config --global alias.signtool '!sh "/usr/src/build-extra/signtool.sh"'
       - name: Retarget auto-update to microsoft/git
         shell: bash
@@ -313,7 +339,9 @@ jobs:
           fi &&
           openssl dgst -sha256 artifacts/${{matrix.type.fileprefix}}-*.exe | sed "s/.* //" >artifacts/sha-256.txt
       - name: Verify that .exe files are code-signed
-        if: env.CODESIGN_P12 != '' && env.CODESIGN_PASS != ''
+        env:
+          DO_CODE_SIGN: ${{ secrets.WIN_CODESIGN_CERT_SECRET_NAME != '' }}
+        if: env.DO_CODE_SIGN == 'true'
         shell: bash
         run: |
           PATH=$PATH:"/c/Program Files (x86)/Windows Kits/10/App Certification Kit/" \
@@ -353,16 +381,23 @@ jobs:
           # Make universal gettext library
           lipo -create -output libintl.a /usr/local/opt/gettext/lib/libintl.a /opt/homebrew/opt/gettext/lib/libintl.a
 
+      - name: Download signing secrets
+        id: signing-secrets
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.APPLE_APPSIGN_ID_SECRET_NAME }}         > $output:appsign-id
+            ${{ secrets.APPLE_INSTSIGN_ID_SECRET_NAME }}        > $output:instsign-id
+            ${{ secrets.APPLE_TEAM_ID_SECRET_NAME }}            > $output:team-id
+            ${{ secrets.APPLE_DEVELOPER_ID_SECRET_NAME }}       > $output:dev-id
+            ${{ secrets.APPLE_DEVELOPER_PASSWORD_SECRET_NAME }} > $output:dev-pass
+            ${{ secrets.APPLE_APPCERT_PASS_SECRET_NAME }}       > $output:appcert-pass
+            ${{ secrets.APPLE_INSTCERT_PASS_SECRET_NAME }}      > $output:instcert-pass
+            ${{ secrets.APPLE_APPCERT_SECRET_NAME }}      base64> appcert.p12
+            ${{ secrets.APPLE_INSTCERT_SECRET_NAME }}     base64> instcert.p12
+
       - name: Set up signing/notarization infrastructure
-        env:
-          A1: ${{ secrets.APPLICATION_CERTIFICATE_BASE64 }}
-          A2: ${{ secrets.APPLICATION_CERTIFICATE_PASSWORD }}
-          I1: ${{ secrets.INSTALLER_CERTIFICATE_BASE64 }}
-          I2: ${{ secrets.INSTALLER_CERTIFICATE_PASSWORD }}
-          N1: ${{ secrets.APPLE_TEAM_ID }}
-          N2: ${{ secrets.APPLE_DEVELOPER_ID }}
-          N3: ${{ secrets.APPLE_DEVELOPER_PASSWORD }}
-          N4: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
         run: |
           echo "Setting up signing certificates"
           security create-keychain -p pwd $RUNNER_TEMP/buildagent.keychain
@@ -371,20 +406,18 @@ jobs:
           # Prevent re-locking
           security set-keychain-settings $RUNNER_TEMP/buildagent.keychain
 
-          echo "$A1" | base64 -D > $RUNNER_TEMP/cert.p12
-          security import $RUNNER_TEMP/cert.p12 \
+          security import appcert.p12 \
             -k $RUNNER_TEMP/buildagent.keychain \
-            -P "$A2" \
+            -P '${{ steps.signing-secrets.outputs.appcert-pass }}' \
             -T /usr/bin/codesign
           security set-key-partition-list \
             -S apple-tool:,apple:,codesign: \
             -s -k pwd \
             $RUNNER_TEMP/buildagent.keychain
 
-          echo "$I1" | base64 -D > $RUNNER_TEMP/cert.p12
-          security import $RUNNER_TEMP/cert.p12 \
+          security import instcert.p12 \
             -k $RUNNER_TEMP/buildagent.keychain \
-            -P "$I2" \
+            -P '${{ steps.signing-secrets.outputs.instcert-pass }}' \
             -T /usr/bin/pkgbuild
           security set-key-partition-list \
             -S apple-tool:,apple:,pkgbuild: \
@@ -393,16 +426,12 @@ jobs:
 
           echo "Setting up notarytool"
           xcrun notarytool store-credentials \
-            --team-id "$N1" \
-            --apple-id "$N2" \
-            --password "$N3" \
-            "$N4"
+            --team-id '${{ steps.signing-secrets.outputs.team-id }}' \
+            --apple-id '${{ steps.signing-secrets.outputs.dev-id }}' \
+            --password '${{ steps.signing-secrets.outputs.dev-pass }}' \
+            "msftgit"
 
       - name: Build, sign, and notarize artifacts
-        env:
-          A3: ${{ secrets.APPLE_APPLICATION_SIGNING_IDENTITY }}
-          I3: ${{ secrets.APPLE_INSTALLER_SIGNING_IDENTITY }}
-          N4: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
         run: |
           die () {
             echo "$*" >&2
@@ -462,16 +491,17 @@ jobs:
           cp -R stage/git-universal-$VERSION/ \
             git/.github/macos-installer/build-artifacts
           make -C git/.github/macos-installer V=1 codesign \
-            APPLE_APP_IDENTITY="$A3" || die "Creating signed payload failed"
+            APPLE_APP_IDENTITY=${{ steps.signing-secrets.outputs.appsign-id }} || die "Creating signed payload failed"
 
           # Build and sign pkg
           make -C git/.github/macos-installer V=1 pkg \
-            APPLE_INSTALLER_IDENTITY="$I3" \
+            APPLE_INSTALLER_IDENTITY='${{ steps.signing-secrets.outputs.instsign-id }}' \
             || die "Creating signed pkg failed"
 
           # Notarize pkg
           make -C git/.github/macos-installer V=1 notarize \
-            APPLE_INSTALLER_IDENTITY="$I3" APPLE_KEYCHAIN_PROFILE="$N4" \
+            APPLE_INSTALLER_IDENTITY='${{ steps.signing-secrets.outputs.instsign-id }}' \
+            APPLE_KEYCHAIN_PROFILE="msftgit" \
             || die "Creating signed and notarized pkg failed"
 
           # Create DMG
@@ -601,28 +631,28 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Download GPG secrets
+        id: gpg-secrets
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.LINUX_GPG_KEYGRIP_SECRET_NAME }}       > $output:keygrip
+            ${{ secrets.LINUX_GPG_PRIVATE_SECRET_NAME }} base64> $output:private-key
+            ${{ secrets.LINUX_GPG_PASSPHRASE_SECRET_NAME }}    > $output:passphrase
+
       - name: Prepare for GPG signing
-        env:
-          AZURE_VAULT: ${{ secrets.AZURE_VAULT }}
-          GPG_KEY_SECRET_NAME: ${{ secrets.GPG_KEY_SECRET_NAME }}
-          GPG_PASSPHRASE_SECRET_NAME: ${{ secrets.GPG_PASSPHRASE_SECRET_NAME }}
-          GPG_KEYGRIP_SECRET_NAME: ${{ secrets.GPG_KEYGRIP_SECRET_NAME }}
         run: |
           # Install debsigs
           sudo apt-get install -y debsigs
 
-          # Download GPG key, passphrase, and keygrip from Azure Key Vault
-          key="$(az keyvault secret show --name "$GPG_KEY_SECRET_NAME" --vault-name "$AZURE_VAULT" --query "value" --output tsv)"
-          passphrase="$(az keyvault secret show --name "$GPG_PASSPHRASE_SECRET_NAME" --vault-name "$AZURE_VAULT" --query "value" --output tsv)"
-          keygrip="$(az keyvault secret show --name "$GPG_KEYGRIP_SECRET_NAME" --vault-name "$AZURE_VAULT" --query "value" --output tsv)"
-
           # Import GPG key
-          echo "$key" | base64 -d | gpg --import --no-tty --batch --yes
+          echo -n '${{ steps.gpg-secrets.outputs.private-key }}' | gpg --import --no-tty --batch --yes
 
           # Configure GPG
           echo "allow-preset-passphrase" > ~/.gnupg/gpg-agent.conf
           gpg-connect-agent RELOADAGENT /bye
-          /usr/lib/gnupg2/gpg-preset-passphrase --preset "$keygrip" <<<"$passphrase"
+          /usr/lib/gnupg2/gpg-preset-passphrase --preset '${{ steps.gpg-secrets.outputs.keygrip }}' <<<'${{ steps.gpg-secrets.outputs.passphrase }}'
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -724,9 +754,6 @@ jobs:
       - create-macos-artifacts
       - windows_artifacts
       - prereqs
-    env:
-      AZURE_VAULT: ${{ secrets.AZURE_VAULT }}
-      GPG_PUBLIC_KEY_SECRET_NAME: ${{ secrets.GPG_PUBLIC_KEY_SECRET_NAME }}
     environment: release
     if: |
       success() ||
@@ -777,12 +804,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Download GPG public key signature file
-        run: |
-          az keyvault secret show --name "$GPG_PUBLIC_KEY_SECRET_NAME" \
-            --vault-name "$AZURE_VAULT" --query "value" --output tsv |
-            base64 -d >msft-git-public.asc
-          mv msft-git-public.asc deb-package
+      - name: Download Linux GPG public key signature file
+        uses: ./.github/actions/akv-secret
+        with:
+          vault: ${{ secrets.AZURE_VAULT }}
+          secrets: |
+            ${{ secrets.LINUX_GPG_PUBLIC_SECRET_NAME }} base64> deb-package/msft-git-public.asc
 
       - uses: actions/github-script@v6
         with:
