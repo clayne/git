@@ -272,11 +272,16 @@ jobs:
 
           b=/usr/src/build-extra &&
 
-          sed -i -e '/^ *InstallAutoUpdater();$/a\
-              CustomPostInstall();' \
-            -e '/^ *UninstallAutoUpdater();$/a\
-              CustomPostUninstall();' \
-            $b/installer/install.iss &&
+          sed -i "# First, find the autoupdater parts in the install/uninstall steps
+            /if IsComponentInstalled('autoupdate')/{
+              # slurp in the next two lines, where the call to InstallAutoUpdater()/UninstallAutoUpdater() happens
+              N
+              N
+              # insert the corresponding CustomPostInstall()/CustomPostUninstall() call before that block
+              s/^\\([ \t]*\\)\(.*\\)\\(Install\\|Uninstall\\)\\(AutoUpdater\\)/\\1CustomPost\\3();\\n\\1\\2\\3\\4/
+            }" $b/installer/install.iss &&
+          grep CustomPostInstall $b/installer/install.iss &&
+          grep CustomPostUninstall $b/installer/install.iss &&
 
           cat >>$b/installer/helpers.inc.iss <<\EOF
 
