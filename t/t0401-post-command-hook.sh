@@ -22,12 +22,54 @@ test_expect_success 'with succeeding hook' '
 '
 
 test_expect_success 'with failing pre-command hook' '
+	test_when_finished rm -f .git/hooks/pre-command &&
 	write_script .git/hooks/pre-command <<-EOF &&
 	exit 1
 	EOF
 	echo "third" >> file &&
 	test_must_fail git add file &&
 	test_path_is_missing "$(cat .git/post-command.out)"
+'
+
+test_expect_success 'with post-index-change config' '
+	mkdir -p .git/hooks &&
+	write_script .git/hooks/post-command <<-EOF &&
+	echo ran >post-command.out
+	EOF
+	write_script .git/hooks/post-index-change <<-EOF &&
+	echo ran >post-index-change.out
+	EOF
+
+	# First, show expected behavior.
+	echo ran >expect &&
+	rm -f post-command.out post-index-change.out &&
+
+	# rev-parse leaves index intact, but runs post-command.
+	git rev-parse HEAD &&
+	test_path_is_missing post-index-change.out &&
+	test_cmp expect post-command.out &&
+	rm -f post-command.out &&
+
+	echo stuff >>file &&
+	# add updates the index and runs post-command.
+	git add file &&
+	test_cmp expect post-index-change.out &&
+	test_cmp expect post-command.out &&
+
+	# Now, show configured behavior
+	git config postCommand.strategy post-index-change &&
+	rm -f post-command.out post-index-change.out &&
+
+	# rev-parse leaves index intact and thus skips post-command.
+	git rev-parse HEAD &&
+	test_path_is_missing post-index-change.out &&
+	test_path_is_missing post-command.out &&
+
+	echo stuff >>file &&
+	# add updates the index and runs post-command.
+	git add file &&
+	test_path_is_missing post-index-change.out &&
+	test_cmp expect post-command.out
 '
 
 test_done
