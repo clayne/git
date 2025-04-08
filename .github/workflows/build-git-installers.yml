@@ -132,9 +132,9 @@ jobs:
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
-            ${{ secrets.WIN_GPG_KEYGRIP_SECRET_NAME }}    > $output:keygrip
-            ${{ secrets.WIN_GPG_PRIVATE_SECRET_NAME }}    > $output:private-key
-            ${{ secrets.WIN_GPG_PASSPHRASE_SECRET_NAME }} > $output:passphrase
+            ${{ secrets.WIN_GPG_KEYGRIP_SECRET_NAME }}       > $output:keygrip
+            ${{ secrets.WIN_GPG_PRIVATE_SECRET_NAME }} base64> $output:private-key
+            ${{ secrets.WIN_GPG_PASSPHRASE_SECRET_NAME }}    > $output:passphrase
       - name: Prepare home directory for GPG signing
         if: ${{ steps.gpg-secrets.outputs.keygrip != '' && steps.gpg-secrets.outputs.private-key != '' }}
         shell: bash
