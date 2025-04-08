@@ -390,7 +390,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          path: 'git'
+          path: git
 
       - name: Install Git dependencies
         run: |
