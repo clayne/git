@@ -666,10 +666,12 @@ jobs:
 
       - name: Check out repository (for akv-secret Action)
         uses: actions/checkout@v4
+        with:
+          path: git
 
       - name: Download GPG secrets
         id: gpg-secrets
-        uses: ./.github/actions/akv-secret
+        uses: ./git/.github/actions/akv-secret
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
