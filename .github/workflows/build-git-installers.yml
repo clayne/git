@@ -228,10 +228,12 @@ jobs:
       - name: Check out repository (for akv-secret Action)
         if: env.DO_WIN_CODESIGN == 'true'
         uses: actions/checkout@v4
+        with:
+          path: git
       - name: Download code signing secrets
         id: codesign-secrets
         if: env.DO_WIN_CODESIGN == 'true'
-        uses: ./.github/actions/akv-secret
+        uses: ./git/.github/actions/akv-secret
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
