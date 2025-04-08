@@ -1,6 +1,7 @@
 const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
+const path = require('path');
 
 // Note that we are not using the `@actions/core` package as it is not available
 // without either committing node_modules/ to the repository, or using something
