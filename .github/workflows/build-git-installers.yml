@@ -409,7 +409,7 @@ jobs:
 
       - name: Download signing secrets
         id: signing-secrets
-        uses: ./.github/actions/akv-secret
+        uses: ./git/.github/actions/akv-secret
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
