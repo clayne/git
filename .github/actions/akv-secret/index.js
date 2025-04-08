@@ -67,6 +67,7 @@ const setSecret = (value) => {
   process.stdout.write(
     value
       .split(/\r?\n/g)
+      .filter(line => line.length > 0) // Cannot mask empty lines
       .map(
         value => `::add-mask::${escapeData(value)}${os.EOL}`
       )
