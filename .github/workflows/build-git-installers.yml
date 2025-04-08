@@ -357,10 +357,21 @@ jobs:
           openssl dgst -sha256 artifacts/${{matrix.type.fileprefix}}-*.exe | sed "s/.* //" >artifacts/sha-256.txt
       - name: Verify that .exe files are code-signed
         if: env.DO_WIN_CODESIGN == 'true'
-        shell: bash
+        shell: pwsh
         run: |
-          PATH=$PATH:"/c/Program Files (x86)/Windows Kits/10/App Certification Kit/" \
-          signtool verify //pa artifacts/${{matrix.type.fileprefix}}-*.exe
+          $ret = 0
+          $files = Get-ChildItem -Path artifacts -Filter "${{matrix.type.fileprefix}}-*.exe"
+          foreach ($file in $files) {
+              $signature = Get-AuthenticodeSignature -FilePath $file.FullName
+              if ($signature.Status -eq 'Valid') {
+                  Write-Host "[ VALID ] $($file.FullName)"
+              } else {
+                  Write-Host "[INVALID] $($file.FullName)"
+                  Write-Host "  Message: $($signature.StatusMessage)"
+                  $ret = 1
+              }
+          }
+          exit $ret
       - name: Publish ${{matrix.type.name}}-${{matrix.arch.name}}
         uses: actions/upload-artifact@v4
         with:
