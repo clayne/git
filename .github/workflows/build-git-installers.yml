@@ -356,9 +356,7 @@ jobs:
           fi &&
           openssl dgst -sha256 artifacts/${{matrix.type.fileprefix}}-*.exe | sed "s/.* //" >artifacts/sha-256.txt
       - name: Verify that .exe files are code-signed
-        env:
-          DO_CODE_SIGN: ${{ secrets.WIN_CODESIGN_CERT_SECRET_NAME != '' }}
-        if: env.DO_CODE_SIGN == 'true'
+        if: env.DO_WIN_CODESIGN == 'true'
         shell: bash
         run: |
           PATH=$PATH:"/c/Program Files (x86)/Windows Kits/10/App Certification Kit/" \
