@@ -664,6 +664,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Check out repository (for akv-secret Action)
+        uses: actions/checkout@v4
+
       - name: Download GPG secrets
         id: gpg-secrets
         uses: ./.github/actions/akv-secret
