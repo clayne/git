@@ -132,9 +132,9 @@ jobs:
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
-            ${{ secrets.WIN_GPG_KEYGRIP_SECRET_NAME }}    > $output:keygrip
-            ${{ secrets.WIN_GPG_PRIVATE_SECRET_NAME }}    > $output:private-key
-            ${{ secrets.WIN_GPG_PASSPHRASE_SECRET_NAME }} > $output:passphrase
+            ${{ secrets.WIN_GPG_KEYGRIP_SECRET_NAME }}       > $output:keygrip
+            ${{ secrets.WIN_GPG_PRIVATE_SECRET_NAME }} base64> $output:private-key
+            ${{ secrets.WIN_GPG_PASSPHRASE_SECRET_NAME }}    > $output:passphrase
       - name: Prepare home directory for GPG signing
         if: ${{ steps.gpg-secrets.outputs.keygrip != '' && steps.gpg-secrets.outputs.private-key != '' }}
         shell: bash
@@ -218,10 +218,22 @@ jobs:
         shell: bash
         run: |
           git clone --filter=blob:none --single-branch -b main https://github.com/git-for-windows/build-extra /usr/src/build-extra
+      - name: Log in to Azure
+        uses: azure/login@v2
+        if: env.DO_WIN_CODESIGN == 'true'
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Check out repository (for akv-secret Action)
+        if: env.DO_WIN_CODESIGN == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: git
       - name: Download code signing secrets
         id: codesign-secrets
         if: env.DO_WIN_CODESIGN == 'true'
-        uses: ./.github/actions/akv-secret
+        uses: ./git/.github/actions/akv-secret
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
@@ -344,13 +356,22 @@ jobs:
           fi &&
           openssl dgst -sha256 artifacts/${{matrix.type.fileprefix}}-*.exe | sed "s/.* //" >artifacts/sha-256.txt
       - name: Verify that .exe files are code-signed
-        env:
-          DO_CODE_SIGN: ${{ secrets.WIN_CODESIGN_CERT_SECRET_NAME != '' }}
-        if: env.DO_CODE_SIGN == 'true'
-        shell: bash
+        if: env.DO_WIN_CODESIGN == 'true'
+        shell: pwsh
         run: |
-          PATH=$PATH:"/c/Program Files (x86)/Windows Kits/10/App Certification Kit/" \
-          signtool verify //pa artifacts/${{matrix.type.fileprefix}}-*.exe
+          $ret = 0
+          $files = Get-ChildItem -Path artifacts -Filter "${{matrix.type.fileprefix}}-*.exe"
+          foreach ($file in $files) {
+              $signature = Get-AuthenticodeSignature -FilePath $file.FullName
+              if ($signature.Status -eq 'Valid') {
+                  Write-Host "[ VALID ] $($file.FullName)"
+              } else {
+                  Write-Host "[INVALID] $($file.FullName)"
+                  Write-Host "  Message: $($signature.StatusMessage)"
+                  $ret = 1
+              }
+          }
+          exit $ret
       - name: Publish ${{matrix.type.name}}-${{matrix.arch.name}}
         uses: actions/upload-artifact@v4
         with:
@@ -369,7 +390,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          path: 'git'
+          path: git
 
       - name: Install Git dependencies
         run: |
@@ -386,9 +407,16 @@ jobs:
           # Make universal gettext library
           lipo -create -output libintl.a /usr/local/opt/gettext/lib/libintl.a /opt/homebrew/opt/gettext/lib/libintl.a
 
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Download signing secrets
         id: signing-secrets
-        uses: ./.github/actions/akv-secret
+        uses: ./git/.github/actions/akv-secret
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
@@ -399,8 +427,8 @@ jobs:
             ${{ secrets.APPLE_DEVELOPER_PASSWORD_SECRET_NAME }} > $output:dev-pass
             ${{ secrets.APPLE_APPCERT_PASS_SECRET_NAME }}       > $output:appcert-pass
             ${{ secrets.APPLE_INSTCERT_PASS_SECRET_NAME }}      > $output:instcert-pass
-            ${{ secrets.APPLE_APPCERT_SECRET_NAME }}      base64> appcert.p12
-            ${{ secrets.APPLE_INSTCERT_SECRET_NAME }}     base64> instcert.p12
+            ${{ secrets.APPLE_APPCERT_SECRET_NAME }}      base64> ${{ runner.temp }}/appcert.p12
+            ${{ secrets.APPLE_INSTCERT_SECRET_NAME }}     base64> ${{ runner.temp }}/instcert.p12
 
       - name: Set up signing/notarization infrastructure
         run: |
@@ -411,7 +439,7 @@ jobs:
           # Prevent re-locking
           security set-keychain-settings $RUNNER_TEMP/buildagent.keychain
 
-          security import appcert.p12 \
+          security import $RUNNER_TEMP/appcert.p12 \
             -k $RUNNER_TEMP/buildagent.keychain \
             -P '${{ steps.signing-secrets.outputs.appcert-pass }}' \
             -T /usr/bin/codesign
@@ -420,7 +448,7 @@ jobs:
             -s -k pwd \
             $RUNNER_TEMP/buildagent.keychain
 
-          security import instcert.p12 \
+          security import $RUNNER_TEMP/instcert.p12 \
             -k $RUNNER_TEMP/buildagent.keychain \
             -P '${{ steps.signing-secrets.outputs.instcert-pass }}' \
             -T /usr/bin/pkgbuild
@@ -496,7 +524,7 @@ jobs:
           cp -R stage/git-universal-$VERSION/ \
             git/.github/macos-installer/build-artifacts
           make -C git/.github/macos-installer V=1 codesign \
-            APPLE_APP_IDENTITY=${{ steps.signing-secrets.outputs.appsign-id }} || die "Creating signed payload failed"
+            APPLE_APP_IDENTITY='${{ steps.signing-secrets.outputs.appsign-id }}' || die "Creating signed payload failed"
 
           # Build and sign pkg
           make -C git/.github/macos-installer V=1 pkg \
@@ -636,9 +664,14 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Check out repository (for akv-secret Action)
+        uses: actions/checkout@v4
+        with:
+          path: git
+
       - name: Download GPG secrets
         id: gpg-secrets
-        uses: ./.github/actions/akv-secret
+        uses: ./git/.github/actions/akv-secret
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
@@ -809,8 +842,13 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Check out repository (for akv-secret Action)
+        uses: actions/checkout@v4
+        with:
+          path: git
+
       - name: Download Linux GPG public key signature file
-        uses: ./.github/actions/akv-secret
+        uses: ./git/.github/actions/akv-secret
         with:
           vault: ${{ secrets.AZURE_VAULT }}
           secrets: |
