@@ -70,7 +70,7 @@ jobs:
             artifact: pkg-aarch64
             toolchain: clang-aarch64
             mingwprefix: clangarm64
-            runner: ['self-hosted', '1ES.Pool=github-arm64-pool']
+            runner: windows-11-arm
     runs-on: ${{ matrix.arch.runner }}
     env:
       GPG_OPTIONS: "--batch --yes --no-tty --list-options no-show-photos --verify-options no-show-photos --pinentry-mode loopback"
@@ -197,7 +197,7 @@ jobs:
             artifact: pkg-aarch64
             toolchain: clang-aarch64
             mingwprefix: clangarm64
-            runner: ['self-hosted', '1ES.Pool=github-arm64-pool']
+            runner: windows-11-arm
         type:
           - name: installer
             fileprefix: Git
@@ -729,7 +729,7 @@ jobs:
           - os: windows-latest
             artifact: win-installer-x86_64
             command: $PROGRAMFILES\Git\cmd\git.exe
-          - os: ['self-hosted', '1ES.Pool=github-arm64-pool']
+          - os: windows-11-arm
             artifact: win-installer-aarch64
             command: $PROGRAMFILES\Git\cmd\git.exe
     runs-on: ${{ matrix.component.os }}
