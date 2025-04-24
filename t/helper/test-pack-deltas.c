@@ -122,6 +122,7 @@ int cmd__pack_deltas(int argc, const char **argv)
 			if (get_oid_hex(base_oid_str, &base_oid))
 				die("invalid object: %s", base_oid_str);
 		}
+		string_list_clear(&items, 0);
 
 		if (!strcmp(type_str, "REF_DELTA"))
 			write_ref_delta(f, &content_oid, &base_oid);
