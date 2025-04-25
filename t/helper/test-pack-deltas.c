@@ -8,11 +8,12 @@
 #include "hex.h"
 #include "pack.h"
 #include "pack-objects.h"
+#include "parse.h"
 #include "setup.h"
 #include "strbuf.h"
 #include "string-list.h"
 
-static const char usage_str[] = "test-tool pack-deltas <n>";
+static const char usage_str[] = "test-tool pack-deltas <nr_entries>";
 
 static unsigned long do_compress(void **pptr, unsigned long size)
 {
@@ -79,7 +80,7 @@ static void write_ref_delta(struct hashfile *f,
 
 int cmd__pack_deltas(int argc, const char **argv)
 {
-	int N;
+	unsigned long n;
 	struct hashfile *f;
 	struct strbuf line = STRBUF_INIT;
 
@@ -88,12 +89,13 @@ int cmd__pack_deltas(int argc, const char **argv)
 		return -1;
 	}
 
-	N = atoi(argv[1]);
+	if (!git_parse_ulong(argv[1], &n) || n != (uint32_t)n)
+		die("invalid number of objects: %s", argv[1]);
 
 	setup_git_directory();
 
 	f = hashfd(1, "<stdout>");
-	write_pack_header(f, N);
+	write_pack_header(f, n);
 
 	/* Read each line from stdin into 'line' */
 	while (strbuf_getline_lf(&line, stdin) != EOF) {
