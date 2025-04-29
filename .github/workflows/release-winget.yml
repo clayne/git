@@ -66,7 +66,7 @@ jobs:
           Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
           .\wingetcreate.exe update Microsoft.Git `
               -v $version `
-              -o manifests `
+              -o . `
               -u "$($asset_x64_url)|x64|machine" `
                  "$($asset_x64_url)|x64|user" `
                  "$($asset_arm64_url)|arm64|machine" `
@@ -77,6 +77,6 @@ jobs:
           Write-Host -NoNewLine "::add-mask::$(Get-Content token.txt)"
 
           # Submit the manifest to the winget-pkgs repository
-          $manifestDirectory = Split-Path "$manifestPath"
-          .\wingetcreate.exe submit -t "$(Get-Content token.txt)" $manifestDirectory
+          $manifestDirectory = "$PWD\manifests\m\Microsoft\Git\$version"
+          .\wingetcreate.exe submit -t "$(Get-Content token.txt)" $manfiestDirectory
         shell: powershell
