@@ -63,24 +63,26 @@ test_expect_success 'with post-index-change config' '
 	test_cmp expect post-command.out &&
 
 	# Now, show configured behavior
-	git config postCommand.strategy post-index-change &&
-	rm -f post-command.out post-index-change.out &&
+	git config postCommand.strategy worktree-change &&
 
 	# rev-parse leaves index intact and thus skips post-command.
+	rm -f post-command.out post-index-change.out &&
 	git rev-parse HEAD &&
 	test_path_is_missing post-index-change.out &&
 	test_path_is_missing post-command.out &&
 
 	echo stuff >>file &&
 	# add keeps the worktree the same, so does not run post-command.
+	rm -f post-command.out post-index-change.out &&
 	git add file &&
-	test_path_is_missing post-index-change.out &&
+	test_cmp expect post-index-change.out &&
 	test_path_is_missing post-command.out &&
 
 	echo stuff >>file &&
 	# reset --hard updates the worktree.
+	rm -f post-command.out post-index-change.out &&
 	git reset --hard &&
-	test_path_is_missing post-index-change.out &&
+	test_cmp expect post-index-change.out &&
 	test_cmp expect post-command.out
 '
 

@@ -246,7 +246,7 @@ static int handle_hook_replacement(struct repository *r,
 {
 	const char *strval;
 	if (repo_config_get_string_tmp(r, "postcommand.strategy", &strval) ||
-	    strcasecmp(strval, "post-index-change"))
+	    strcasecmp(strval, "worktree-change"))
 		return 0;
 
 	if (!strcmp(hook_name, "post-index-change")) {
@@ -255,10 +255,13 @@ static int handle_hook_replacement(struct repository *r,
 			*result = write_post_index_change_sentinel(r);
 		else
 			*result = 0;
-		return 1;
+
+		/* We don't skip post-index-change hooks that exist. */
+		return 0;
 	}
 	if (!strcmp(hook_name, "post-command") &&
 	    !post_index_change_sentinel_exists(r)) {
+		/* We skip the post-command hook in this case. */
 		*result = 0;
 		return 1;
 	}
