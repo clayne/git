@@ -190,7 +190,11 @@ static char *get_post_index_change_sentinel_name(struct repository *r)
 	if (slash)
 		*slash = 0;
 
-	repo_git_path_replace(r, &path, "hooks/index-change-%s.snt", sid);
+	/*
+	 * Do not write to hooks directory, as it could be redirected
+	 * somewhere like the source tree.
+	 */
+	repo_git_path_replace(r, &path, "info/index-change-%s.snt", sid);
 
 	return strbuf_detach(&path, NULL);
 }

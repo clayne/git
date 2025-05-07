@@ -32,13 +32,19 @@ test_expect_success 'with failing pre-command hook' '
 '
 
 test_expect_success 'with post-index-change config' '
-	mkdir -p .git/hooks &&
-	write_script .git/hooks/post-command <<-EOF &&
+	mkdir -p internal-hooks &&
+	write_script internal-hooks/post-command <<-EOF &&
 	echo ran >post-command.out
 	EOF
-	write_script .git/hooks/post-index-change <<-EOF &&
+	write_script internal-hooks/post-index-change <<-EOF &&
 	echo ran >post-index-change.out
 	EOF
+
+	# prevent writing of sentinel files to this directory.
+	test_when_finished chmod 775 internal-hooks &&
+	chmod a-w internal-hooks &&
+
+	git config core.hooksPath internal-hooks &&
 
 	# First, show expected behavior.
 	echo ran >expect &&
