@@ -7,7 +7,7 @@ postCommand.strategy::
 `always`;;
 	run the `post-command` hook on every process (default).
 
-`post-index-change`;;
+`worktree-change`;;
 	run the `post-command` hook only if the current process wrote to
-	the index.
+	the index and updated the worktree.
 ----

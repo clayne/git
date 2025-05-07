@@ -190,7 +190,11 @@ static char *get_post_index_change_sentinel_name(struct repository *r)
 	if (slash)
 		*slash = 0;
 
-	repo_git_path_replace(r, &path, "hooks/index-change-%s.snt", sid);
+	/*
+	 * Do not write to hooks directory, as it could be redirected
+	 * somewhere like the source tree.
+	 */
+	repo_git_path_replace(r, &path, "info/index-change-%s.snt", sid);
 
 	return strbuf_detach(&path, NULL);
 }
@@ -229,6 +233,37 @@ static int post_index_change_sentinel_exists(struct repository *r)
 	return res;
 }
 
+/**
+ * See if we can replace the requested hook with an internal behavior.
+ * Returns 0 if the real hook should run. Returns nonzero if we instead
+ * executed custom internal behavior and the real hook should not run.
+ */
+static int handle_hook_replacement(struct repository *r,
+				   const char *hook_name,
+				   struct strvec *args)
+{
+	const char *strval;
+	if (repo_config_get_string_tmp(r, "postcommand.strategy", &strval) ||
+	    strcasecmp(strval, "worktree-change"))
+		return 0;
+
+	if (!strcmp(hook_name, "post-index-change")) {
+		/* Create a sentinel file only if the worktree changed. */
+		if (!strcmp(args->v[0], "1"))
+			write_post_index_change_sentinel(r);
+
+		/* We don't skip post-index-change hooks that exist. */
+		return 0;
+	}
+	if (!strcmp(hook_name, "post-command") &&
+	    !post_index_change_sentinel_exists(r)) {
+		/* We skip the post-command hook in this case. */
+		return 1;
+	}
+
+	return 0;
+}
+
 int run_hooks_opt(struct repository *r, const char *hook_name,
 		  struct run_hooks_opt *options)
 {
@@ -255,17 +290,9 @@ int run_hooks_opt(struct repository *r, const char *hook_name,
 	};
 
 	/* Interject hook behavior depending on strategy. */
-	if (r && r->gitdir) {
-		const char *strval;
-		if (!repo_config_get_string_tmp(r, "postcommand.strategy", &strval) &&
-		    !strcasecmp(strval, "post-index-change")) {
-			if (!strcmp(hook_name, "post-index-change"))
-				return write_post_index_change_sentinel(r);
-			if (!strcmp(hook_name, "post-command") &&
-			    !post_index_change_sentinel_exists(r))
-				return 0;
-		}
-	}
+	if (r && r->gitdir &&
+	    handle_hook_replacement(r, hook_name, &options->args))
+		return 0;
 
 	hook_path = find_hook(r, hook_name);
 

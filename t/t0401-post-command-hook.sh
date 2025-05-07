@@ -32,13 +32,19 @@ test_expect_success 'with failing pre-command hook' '
 '
 
 test_expect_success 'with post-index-change config' '
-	mkdir -p .git/hooks &&
-	write_script .git/hooks/post-command <<-EOF &&
+	mkdir -p internal-hooks &&
+	write_script internal-hooks/post-command <<-EOF &&
 	echo ran >post-command.out
 	EOF
-	write_script .git/hooks/post-index-change <<-EOF &&
+	write_script internal-hooks/post-index-change <<-EOF &&
 	echo ran >post-index-change.out
 	EOF
+
+	# prevent writing of sentinel files to this directory.
+	test_when_finished chmod 775 internal-hooks &&
+	chmod a-w internal-hooks &&
+
+	git config core.hooksPath internal-hooks &&
 
 	# First, show expected behavior.
 	echo ran >expect &&
@@ -57,18 +63,26 @@ test_expect_success 'with post-index-change config' '
 	test_cmp expect post-command.out &&
 
 	# Now, show configured behavior
-	git config postCommand.strategy post-index-change &&
-	rm -f post-command.out post-index-change.out &&
+	git config postCommand.strategy worktree-change &&
 
 	# rev-parse leaves index intact and thus skips post-command.
+	rm -f post-command.out post-index-change.out &&
 	git rev-parse HEAD &&
 	test_path_is_missing post-index-change.out &&
 	test_path_is_missing post-command.out &&
 
 	echo stuff >>file &&
-	# add updates the index and runs post-command.
+	# add keeps the worktree the same, so does not run post-command.
+	rm -f post-command.out post-index-change.out &&
 	git add file &&
-	test_path_is_missing post-index-change.out &&
+	test_cmp expect post-index-change.out &&
+	test_path_is_missing post-command.out &&
+
+	echo stuff >>file &&
+	# reset --hard updates the worktree.
+	rm -f post-command.out post-index-change.out &&
+	git reset --hard &&
+	test_cmp expect post-index-change.out &&
 	test_cmp expect post-command.out
 '
 
