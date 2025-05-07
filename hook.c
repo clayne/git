@@ -233,6 +233,34 @@ static int post_index_change_sentinel_exists(struct repository *r)
 	return res;
 }
 
+/**
+ * See if we can replace the requested hook with an internal behavior.
+ * Returns 0 if the real hook should run. Returns nonzero if we instead
+ * executed custom internal behavior and the value to return is set to
+ * 'result'.
+ */
+static int handle_hook_replacement(struct repository *r,
+				   const char *hook_name,
+				   int *result)
+{
+	const char *strval;
+	if (repo_config_get_string_tmp(r, "postcommand.strategy", &strval) ||
+	    strcasecmp(strval, "post-index-change"))
+		return 0;
+
+	if (!strcmp(hook_name, "post-index-change")) {
+		*result = write_post_index_change_sentinel(r);
+		return 1;
+	}
+	if (!strcmp(hook_name, "post-command") &&
+	    !post_index_change_sentinel_exists(r)) {
+		*result = 0;
+		return 1;
+	}
+
+	return 0;
+}
+
 int run_hooks_opt(struct repository *r, const char *hook_name,
 		  struct run_hooks_opt *options)
 {
@@ -260,15 +288,9 @@ int run_hooks_opt(struct repository *r, const char *hook_name,
 
 	/* Interject hook behavior depending on strategy. */
 	if (r && r->gitdir) {
-		const char *strval;
-		if (!repo_config_get_string_tmp(r, "postcommand.strategy", &strval) &&
-		    !strcasecmp(strval, "post-index-change")) {
-			if (!strcmp(hook_name, "post-index-change"))
-				return write_post_index_change_sentinel(r);
-			if (!strcmp(hook_name, "post-command") &&
-			    !post_index_change_sentinel_exists(r))
-				return 0;
-		}
+		int result = 0;
+		if (handle_hook_replacement(r, hook_name, &result))
+			return result;
 	}
 
 	hook_path = find_hook(r, hook_name);
