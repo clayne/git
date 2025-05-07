@@ -72,8 +72,14 @@ test_expect_success 'with post-index-change config' '
 	test_path_is_missing post-command.out &&
 
 	echo stuff >>file &&
-	# add updates the index and runs post-command.
+	# add keeps the worktree the same, so does not run post-command.
 	git add file &&
+	test_path_is_missing post-index-change.out &&
+	test_path_is_missing post-command.out &&
+
+	echo stuff >>file &&
+	# reset --hard updates the worktree.
+	git reset --hard &&
 	test_path_is_missing post-index-change.out &&
 	test_cmp expect post-command.out
 '

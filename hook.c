@@ -241,6 +241,7 @@ static int post_index_change_sentinel_exists(struct repository *r)
  */
 static int handle_hook_replacement(struct repository *r,
 				   const char *hook_name,
+				   struct strvec *args,
 				   int *result)
 {
 	const char *strval;
@@ -249,7 +250,11 @@ static int handle_hook_replacement(struct repository *r,
 		return 0;
 
 	if (!strcmp(hook_name, "post-index-change")) {
-		*result = write_post_index_change_sentinel(r);
+		/* Create a sentinel file only if the worktree changed. */
+		if (!strcmp(args->v[0], "1"))
+			*result = write_post_index_change_sentinel(r);
+		else
+			*result = 0;
 		return 1;
 	}
 	if (!strcmp(hook_name, "post-command") &&
@@ -289,7 +294,8 @@ int run_hooks_opt(struct repository *r, const char *hook_name,
 	/* Interject hook behavior depending on strategy. */
 	if (r && r->gitdir) {
 		int result = 0;
-		if (handle_hook_replacement(r, hook_name, &result))
+		if (handle_hook_replacement(r, hook_name,
+					    &options->args, &result))
 			return result;
 	}
 
