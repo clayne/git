@@ -78,5 +78,5 @@ jobs:
 
           # Submit the manifest to the winget-pkgs repository
           $manifestDirectory = "$PWD\manifests\m\Microsoft\Git\$version"
-          .\wingetcreate.exe submit -t "$(Get-Content token.txt)" $manfiestDirectory
+          .\wingetcreate.exe submit -t "$(Get-Content token.txt)" $manifestDirectory
         shell: powershell
