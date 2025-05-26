@@ -1122,6 +1122,13 @@ test_expect_success 'http-error: 503 Service Unavailable (with retry and no-fall
 #
 #################################################################
 
+test_lazy_prereq CURL_7_75_OR_NEWER '
+	case "$(curl version | sed -n "1s/^curl \([^ ]*\).*/\1/p")" in
+	""|[0-6].*|7.[0-9]*.*|7.[1-6][0-9].*|7.7[0-4]*.*) return 1;;
+	*) return 0;;
+	esac
+'
+
 test_expect_success 'HTTP GET Auth on Origin Server' '
 	test_when_finished "per_test_cleanup" &&
 	start_gvfs_protocol_server_with_mayhem http_401 &&
@@ -1148,7 +1155,10 @@ test_expect_success 'HTTP GET Auth on Origin Server' '
 	test_cmp "$OID_ONE_BLOB_FILE" OUT.actual &&
 
 	verify_objects_in_shared_cache "$OID_ONE_BLOB_FILE" &&
-	verify_connection_count 2
+	if test_have_prereq CURL_7_75_OR_NEWER
+	then
+		verify_connection_count 2
+	fi
 '
 
 test_expect_success 'HTTP POST Auth on Origin Server' '

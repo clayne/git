@@ -2913,6 +2913,19 @@ static void do_req(const char *url_base,
 	curl_easy_setopt(slot->curl, CURLOPT_NOBODY, 0); /* not a HEAD request */
 	curl_easy_setopt(slot->curl, CURLOPT_URL, rest_url.buf);
 	curl_easy_setopt(slot->curl, CURLOPT_HTTPHEADER, params->headers);
+	if (curl_version_info(CURLVERSION_NOW)->version_num < 0x074b00)
+		/*
+		 * cURL 7.75.0 allows headers to be parsed even when
+		 * `CURLOPT_FAILONERROR` is enabled and the HTTP result code
+		 * indicates an error. This is the behavior expected by
+		 * `gvfs-helper`.
+		 *
+		 * On older cURL versions, `gvfs-helper` still needs to parse
+		 * the HTTP headers and therefore needs to _not_ fail upon
+		 * HTTP result codes indicating errors; For newer cURL
+		 * versions, we still prefer to enable `FAILONERROR`.
+		 */
+		curl_easy_setopt(slot->curl, CURLOPT_FAILONERROR, (long)0);
 
 	if (params->b_is_post) {
 		curl_easy_setopt(slot->curl, CURLOPT_POST, 1);
