@@ -381,7 +381,7 @@ jobs:
 
   # Build and sign Mac OSX installers & upload artifacts
   create-macos-artifacts:
-    runs-on: macos-latest-xl-arm64
+    runs-on: macos-latest
     needs: prereqs
     env:
       VERSION: "${{ needs.prereqs.outputs.tag_version }}"
