@@ -720,7 +720,7 @@ jobs:
           - os: ubuntu-latest
             artifact: linux-artifacts
             command: git
-          - os: macos-latest-xl-arm64
+          - os: macos-latest
             artifact: macos-artifacts
             command: git
           - os: macos-latest
