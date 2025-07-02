@@ -65,7 +65,7 @@ jobs:
             artifact: pkg-x86_64
             toolchain: x86_64
             mingwprefix: mingw64
-            runner: windows-2019
+            runner: windows-2022
           - name: aarch64
             artifact: pkg-aarch64
             toolchain: clang-aarch64
@@ -192,7 +192,7 @@ jobs:
             artifact: pkg-x86_64
             toolchain: x86_64
             mingwprefix: mingw64
-            runner: windows-2019
+            runner: windows-2022
           - name: aarch64
             artifact: pkg-aarch64
             toolchain: clang-aarch64
