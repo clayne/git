@@ -19,15 +19,6 @@ static int clar_summary_testsuites(struct clar_summary *summary)
 	return fprintf(summary->fp, "<testsuites>\n");
 }
 
-#ifdef _WIN32
-static struct tm *localtime_r(const time_t *timep, struct tm *result)
-{
-	if (localtime_s(result, timep) == 0)
-		return result;
-	return NULL;
-}
-#endif
-
 static int clar_summary_testsuite(struct clar_summary *summary,
     int idn, const char *name, time_t timestamp,
     int test_count, int fail_count, int error_count)
