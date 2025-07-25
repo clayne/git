@@ -332,7 +332,7 @@ int create_diagnostics_archive(struct repository *r,
 					res = error_errno(_("could not read '%s'"), path.buf);
 					goto diagnose_cleanup;
 				}
-				strvec_push(&archiver_args, buf.buf);
+				strvec_push(&archiver_args, buf.buf); // CodeQL [SM01932] justification: CodeQL is wrong here because the value is read from a file via strbuf_read() which does NUL-terminate the string, something CodeQL fails to understand
 			}
 			closedir(dir);
 		}

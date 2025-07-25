@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ["cpp"]
+        language: ["cpp", "javascript", "go"]
 
     steps:
       - name: Checkout repository
@@ -29,7 +29,10 @@ jobs:
         env:
           jobname: codeql
 
-      # Initializes the CodeQL tools for scanning.
+      - uses: actions/setup-go@v5
+        if: matrix.language == 'go'
+
+        # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -40,6 +43,14 @@ jobs:
         if: matrix.language == 'cpp'
         run: |
           cat /proc/cpuinfo
+          make -j$(nproc)
+
+      - name: Build (Go)
+        if: matrix.language == 'go'
+        run: |
+          cat /proc/cpuinfo
+          cd contrib/persistent-https &&
+          go mod init git-remote-persistent-https &&
           make -j$(nproc)
 
       - name: Perform CodeQL Analysis
@@ -55,10 +66,10 @@ jobs:
       - name: publish sarif for debugging
         uses: actions/upload-artifact@v4
         with:
-          name: sarif-results
+          name: sarif-results-${{ matrix.language }}
           path: sarif-results
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
-         sarif_file: sarif-results/cpp.sarif
+         sarif_file: sarif-results/${{ matrix.language }}.sarif
