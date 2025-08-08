@@ -601,10 +601,12 @@ jobs:
               exit 1
           }
 
-          echo "${{ needs.prereqs.outputs.tag_version }}" >>git/version
-          make -C git GIT-VERSION-FILE
-
           VERSION="${{ needs.prereqs.outputs.tag_version }}"
+
+          # Convert -rc to .rc to match GIT-VERSION-FILE behavior
+          BUILD_VERSION=$(echo "${VERSION}" | sed 's/-rc/.rc/g')
+          echo "$BUILD_VERSION" >git/version
+          make -C git GIT-VERSION-FILE
 
           ARCH="$(dpkg-architecture -q DEB_HOST_ARCH)"
           if test -z "$ARCH"; then
