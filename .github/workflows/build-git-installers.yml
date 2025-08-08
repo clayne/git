@@ -774,7 +774,7 @@ jobs:
         shell: bash
         run: |
           "${{ matrix.component.command }}" --version | sed 's/git version //' >actual
-          echo ${{ needs.prereqs.outputs.tag_version }} >expect
+          echo "${{ needs.prereqs.outputs.tag_version }}" | sed 's/-rc/.rc/g' >expect
           cmp expect actual || exit 1
 
       - name: Validate universal binary CPU architecture
