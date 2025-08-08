@@ -159,6 +159,6 @@ endif
 ifdef APPLE_KEYCHAIN_PROFILE
 notarize:
 	@$(CURDIR)/../scripts/notarize.sh \
-		--package="disk-image/git-$(VERSION)-$(ARCH_UNIV).pkg" \
+		--package="disk-image/git-$(ORIGINAL_VERSION)-$(ARCH_UNIV).pkg" \
 		--keychain-profile="$(APPLE_KEYCHAIN_PROFILE)"
 endif
