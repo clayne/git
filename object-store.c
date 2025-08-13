@@ -707,6 +707,9 @@ int read_object_process(const struct object_id *oid)
 	const char *cmd = find_hook(the_repository, "read-object");
 	uint64_t start;
 
+	if (!cmd)
+		die(_("could not find the `read-object` hook"));
+
 	start = getnanotime();
 
 	trace2_region_enter("subprocess", "read_object", the_repository);
