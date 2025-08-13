@@ -7,6 +7,7 @@
 #include "dir.h"
 #include "environment.h"
 #include "gettext.h"
+#include "gvfs.h"
 #include "gvfs-helper-client.h"
 #include "hex.h"
 #include "hook.h"
@@ -707,6 +708,9 @@ int read_object_process(const struct object_id *oid)
 	const char *cmd = find_hook(the_repository, "read-object");
 	uint64_t start;
 
+	if (!cmd)
+		die(_("could not find the `read-object` hook"));
+
 	start = getnanotime();
 
 	trace2_region_enter("subprocess", "read_object", the_repository);
@@ -1103,6 +1107,9 @@ void *repo_read_object_file(struct repository *r,
 	struct object_info oi = OBJECT_INFO_INIT;
 	unsigned flags = OBJECT_INFO_DIE_IF_CORRUPT | OBJECT_INFO_LOOKUP_REPLACE;
 	void *data;
+
+	if (gvfs_config_is_set(GVFS_MISSING_OK))
+		flags &= ~OBJECT_INFO_DIE_IF_CORRUPT;
 
 	oi.typep = type;
 	oi.sizep = size;
