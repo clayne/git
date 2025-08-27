@@ -244,17 +244,14 @@ jobs:
         run: |
           set -x
 
-          # Copy the PDB archive to the directory where `--include-pdbs` expects it
-          b=/usr/src/build-extra &&
-          mkdir -p $b/cached-source-packages &&
-          cp ${{matrix.arch.artifact}}/*-pdb* $b/cached-source-packages/ &&
-
           # Build the installer, embedding PDBs
-          eval $b/please.sh make_installers_from_mingw_w64_git --include-pdbs \
-              --version=${{ needs.prereqs.outputs.tag_version }} \
-              -o artifacts --${{matrix.type.name}} \
-              --pkg=${{matrix.arch.artifact}}/mingw-w64-${{matrix.arch.toolchain}}-git-[0-9]*.tar.xz \
-              --pkg=${{matrix.arch.artifact}}/mingw-w64-${{matrix.arch.toolchain}}-git-doc-html-[0-9]*.tar.xz &&
+          ./.github/scripts/package-windows.sh \
+            --arch "${{ matrix.arch.name }}" \
+            --version "${{ needs.prereqs.outputs.tag_version }}" \
+            --build-extra "/usr/src/build-extra" \
+            --pkg-dir "${{ matrix.arch.artifact }}" \
+            --type "${{ matrix.type.name }}" \
+            --output artifacts &&
 
           if test portable = '${{matrix.type.name}}' && test -n "$(git config alias.signtool)"
           then
