@@ -141,7 +141,14 @@ jobs:
           # Make sure that there is a `/usr/bin/git` that can be used by `makepkg-mingw`
           printf '#!/bin/sh\n\nexec /${{matrix.arch.mingwprefix}}/bin/git.exe "$@"\n' >/usr/bin/git &&
 
-          sh -x /usr/src/build-extra/please.sh build-mingw-w64-git --only-${{matrix.arch.name}} --build-src-pkg -o artifacts HEAD &&
+          # Build the package(s)
+          ./.github/scripts/build-windows.sh \
+            --arch "${{ matrix.arch.name }}" \
+            --version "${{ needs.prereqs.outputs.tag_name }}" \
+            --build-extra "/usr/src/build-extra" \
+            --output "artifacts"
+
+          # GPG sign the packages if keygrip is available
           if test -n "${{ steps.gpg-secrets.outputs.keygrip }}"
           then
             for tar in artifacts/*.tar*
@@ -150,12 +157,11 @@ jobs:
             done
           fi &&
 
-          b=$PWD/artifacts &&
-          version=${{ needs.prereqs.outputs.tag_name }} &&
-          (cd /usr/src/MINGW-packages/mingw-w64-git &&
-          cp PKGBUILD.$version PKGBUILD &&
-          git commit -s -m "mingw-w64-git: new version ($version)" PKGBUILD &&
-          git bundle create "$b"/MINGW-packages.bundle origin/main..main)
+          # Create the bundle
+          ./.github/scripts/bundle-windows.sh \
+            --version "${{ needs.prereqs.outputs.tag_name }}" \
+            --pkg-dir "/usr/src/MINGW-packages/mingw-w64-git" \
+            --output "$PWD/artifacts"
       - name: Publish mingw-w64-${{matrix.arch.toolchain}}-git
         uses: actions/upload-artifact@v4
         with:
