@@ -60,23 +60,6 @@ jobs:
       HOME: "${{github.workspace}}\\home"
       USERPROFILE: "${{github.workspace}}\\home"
     steps:
-      - name: Configure user
-        shell: bash
-        run:
-          USER_NAME="${{github.actor}}" &&
-          USER_EMAIL="${{github.actor}}@users.noreply.github.com" &&
-          mkdir -p "$HOME" &&
-          git config --global user.name "$USER_NAME" &&
-          git config --global user.email "$USER_EMAIL" &&
-          echo "PACKAGER=$USER_NAME <$USER_EMAIL>" >>$GITHUB_ENV
-      - uses: git-for-windows/setup-git-for-windows-sdk@v1
-        with:
-          flavor: build-installers
-          architecture: ${{ matrix.arch.name }}
-      - name: Clone build-extra
-        shell: bash
-        run: |
-          git clone --filter=blob:none --single-branch -b main https://github.com/git-for-windows/build-extra /usr/src/build-extra
       - name: Clone git
         shell: bash
         run: |
@@ -88,6 +71,22 @@ jobs:
           git remote add -f origin https://github.com/git-for-windows/git &&
           git fetch "https://github.com/${{github.repository}}" refs/tags/${tag_name}:refs/tags/${tag_name} &&
           git reset --hard ${tag_name}
+      - name: Configure user
+        shell: bash
+        run:
+          USER_NAME="${{github.actor}}" &&
+          USER_EMAIL="${{github.actor}}@users.noreply.github.com" &&
+          mkdir -p "$HOME" &&
+          echo "PACKAGER=$USER_NAME <$USER_EMAIL>" >>$GITHUB_ENV &&
+          ./.github/scripts/configure-git-user.sh --name "$USER_NAME" --email "$USER_EMAIL"
+      - uses: git-for-windows/setup-git-for-windows-sdk@v1
+        with:
+          flavor: build-installers
+          architecture: ${{ matrix.arch.name }}
+      - name: Clone build-extra
+        shell: bash
+        run: |
+          git clone --filter=blob:none --single-branch -b main https://github.com/git-for-windows/build-extra /usr/src/build-extra
       - name: Log in to Azure
         uses: azure/login@v2
         with:
