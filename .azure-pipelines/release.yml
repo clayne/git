@@ -1,0 +1,133 @@
+name: Release
+trigger: none
+pr: none
+
+resources:
+  repositories:
+    - repository: 1ESPipelineTemplates
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+
+    - repository: build-extra
+      type: github
+      name: git-for-windows/build-extra
+      ref: refs/heads/main
+
+parameters:
+  - name: matrix_windows
+    type: object
+    default:
+      - id: x86_64
+        arch: x86_64
+        image: win-x86_64-ado1es
+
+      - id: arm64
+        arch: aarch64
+        image: win-arm64-ado1es
+
+extends:
+  #template: v1/1ES.Official.PipelineTemplate.yml@1ESPipelineTemplates
+  template: v1/1ES.Unofficial.PipelineTemplate.yml@1ESPipelineTemplates
+  parameters:
+
+    stages:
+      - stage: validation
+        displayName: 'Pre-build Validation'
+        pool:
+          name: GitClient-1ESHostedPool-intel-pc
+          image: ubuntu-x86_64-ado1es
+          os: linux
+        jobs:
+          - job: validate_tag
+            displayName: 'Validate tag information'
+            steps:
+              - checkout: self
+                displayName: 'Checkout Git'
+              - bash: |
+                  ./.github/scripts/validate-tag.sh "$(Build.SourceBranch)"
+                displayName: 'Validate tag'
+              - bash: |
+                  REF_NAME=$(Build.SourceBranch)
+                  TAG_NAME=${REF_NAME#refs/tags/}
+                  BUILD_VERSION=${TAG_NAME#v}
+                  BUILD_VERSION=${BUILD_VERSION//-/.}
+                  echo "##vso[task.setvariable variable=tag_name;isOutput=true]$TAG_NAME"
+                  echo "##vso[task.setvariable variable=tag_version;isOutput=true]$BUILD_VERSION"
+                name: tag_info
+                displayName: Set tag/version outputs
+
+      - stage: windows
+        displayName: 'Windows'
+        dependsOn: validation
+        variables:
+          tag_name: $(stageDependencies.validation.validate_tag.outputs['tag_info.tag_name'])
+          tag_version: $(stageDependencies.validation.validate_tag.outputs['tag_info.tag_version'])
+        jobs:
+        - ${{ each dim in parameters.matrix_windows }}:
+          - job: build_${{ dim.id }}
+            displayName: 'Build ${{ dim.id }}'
+            pool:
+              name: GitClient-1ESHostedPool-intel-pc
+              image: ${{ dim.image }}
+              os: windows
+            templateContext:
+              outputs:
+                - output: pipelineArtifact
+                  path: ./artifacts
+                  artifact: windows-${{ dim.id }}
+            steps:
+              - checkout: self
+                displayName: 'Checkout Git'
+              - checkout: build-extra
+                displayName: 'Checkout build-extra'
+
+              - bash: |
+                  ./git/.github/scripts/configure-user.sh \
+                    --name "$(Build.RequestedFor)" \
+                    --email "$(Build.RequestedForEmail)"
+                displayName: 'Configure Git user'
+
+              - bash: |
+                  ./git/.github/scripts/install-gfw-sdk.sh \
+                    --arch ${{ dim.arch }} \
+                    --path ./git-sdk
+                displayName: 'Install Git for Windows SDK'
+
+              - bash: |
+                  ./git/.github/scripts/build-windows.sh \
+                    --arch ${{ dim.arch }} \
+                    --version $(tag_name) \
+                    --build-extra ./build-extra \
+                    --output ./artifacts/pkg
+                displayName: 'Build mingw-w64-git packages'
+
+              - bash: |
+                  ./git/.github/scripts/bundle-windows.sh \
+                    --version $(tag_name) \
+                    --pkg-dir ./artifacts/pkg \
+                    --output ./artifacts/bundle
+                displayName: 'Create package bundle'
+
+              - bash: |
+                  ./git/.github/scripts/customize-windows.sh \
+                    --build-extra ./build-extra
+                displayName: 'Customize installer package'
+
+              - bash: |
+                  ./git/.github/scripts/package-windows.sh \
+                    --arch ${{ dim.arch }} \
+                    --version $(tag_name) \
+                    --pkg-dir ./artifacts/pkg \
+                    --type portable \
+                    --output ./artifacts/publish
+                displayName: 'Build portable package'
+              
+              - bash: |
+                  ./git/.github/scripts/package-windows.sh \
+                    --arch ${{ dim.arch }} \
+                    --version $(tag_name) \
+                    --pkg ./artifacts/pkg \
+                    --type installer \
+                    --output ./artifacts/publish
+                displayName: 'Build installer package'
