@@ -11,6 +11,7 @@ permissions:
 env:
   DO_WIN_CODESIGN: ${{ secrets.WIN_CODESIGN_CERT_SECRET_NAME != '' && secrets.WIN_CODESIGN_PASS_SECRET_NAME != '' }}
   DO_WIN_GPGSIGN: ${{ secrets.WIN_GPG_KEYGRIP_SECRET_NAME != '' && secrets.WIN_GPG_PRIVATE_SECRET_NAME != '' && secrets.WIN_GPG_PASSPHRASE_SECRET_NAME != '' }}
+  REF_OVERRIDE: refs/tags/v2.99.0.vfs.0.0
 
 jobs:
   # Check prerequisites for the workflow
@@ -25,12 +26,12 @@ jobs:
       - name: Validate tag
         run: |
           # `actions/checkout` only downloads the peeled tag (i.e. the commit)
-          git fetch origin +$GITHUB_REF:$GITHUB_REF
-          ./.github/scripts/validate-tag.sh "$GITHUB_REF"
+          git fetch origin +$REF_OVERRIDE:$REF_OVERRIDE
+          ./.github/scripts/validate-tag.sh "$REF_OVERRIDE"
       - name: Set tag/version outputs
         run: |
-          echo "name=${GITHUB_REF#refs/tags/}" >>$GITHUB_OUTPUT
-          version="${GITHUB_REF#refs/tags/v}"
+          echo "name=${REF_OVERRIDE#refs/tags/}" >>$GITHUB_OUTPUT
+          version="${REF_OVERRIDE#refs/tags/v}"
           echo "version=$(echo "$version" | sed 's/-/./g')" >>$GITHUB_OUTPUT
         id: tag
 

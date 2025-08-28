@@ -1,6 +1,6 @@
 #!/bin/sh
 
-DEF_VER=v2.50.1
+DEF_VER=v2.99.0
 
 # Identify microsoft/git via a distinct version suffix
 DEF_VER=$DEF_VER.vfs.0.0
