@@ -123,7 +123,7 @@ disk-image/VERSION-$(VERSION)-$(ARCH_UNIV):
 
 pkg_cmd := pkgbuild --identifier com.git.pkg --version $(VERSION) \
 	--root $(ARTIFACTDIR)$(PREFIX) --scripts assets/scripts \
-	--install-location $(PREFIX) --component-plist ./assets/git-components.plist
+	--install-location $(PREFIX)
 
 ifdef APPLE_INSTALLER_IDENTITY
 	pkg_cmd += --sign "$(APPLE_INSTALLER_IDENTITY)"
